@@ -123,19 +123,55 @@ def analyze():
             return jsonify({'error': 'No date provided'}), 400
         
         analysis_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        
+        # DEBUG: Print what we're analyzing
+        print(f"\n{'='*60}")
+        print(f"ANALYZING DATE: {analysis_date}")
+        print(f"{'='*60}")
         # Load data
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], session['current_file'])
+         # DON'T suppress stdout yet - we want to see debug output
+        transactions_df, _ = load_transaction_data(filepath)
         
+        # DEBUG: Check raw data for this date BEFORE running algorithms
+        today_data = transactions_df[transactions_df['transaction_date'].dt.date == analysis_date]
+        print(f"\n{'='*60}")
+        print(f"ANALYZING DATE: {analysis_date}")
+        print(f"Raw transactions on {analysis_date}: {len(today_data)}")
+        print(f"Raw sales on {analysis_date}: GHS {today_data['amount'].sum():,.2f}")
+        print(f"{'='*60}")
+
         import io
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
         
+        
         transactions_df, _ = load_transaction_data(filepath)
+        # DEBUG: Check data for this specific date
+        today_data = transactions_df[transactions_df['transaction_date'].dt.date == analysis_date]
+        print(f"Transactions on {analysis_date}: {len(today_data)}")
+        print(f"Sales on {analysis_date}: GHS {today_data['amount'].sum():,.2f}")
+        
         assessment = calculate_overall_risk(analysis_date, transactions_df)
+        # DEBUG: Check assessment
+        print(f"Risk Score: {assessment['total_risk_score']}")
+        print(f"Risk Level: {assessment['risk_level']}")
         
         sys.stdout = old_stdout
+        # DEBUG: Check assessment results
+        print(f"Risk Score: {assessment['total_risk_score']}")
+        print(f"Risk Level: {assessment['risk_level']}")
         
+        # DEBUG: Check what daily_sales algorithm returned
+        if 'daily_sales' in assessment['algorithm_results']:
+            ds_result = assessment['algorithm_results']['daily_sales']
+            print(f"Daily Sales Algorithm:")
+            print(f"  can_analyze: {ds_result.get('can_analyze')}")
+            if ds_result.get('can_analyze'):
+                print(f"  Today Sales: {ds_result['metrics'].get('today_sales', 'N/A')}")
+                print(f"  Today Trans: {ds_result['metrics'].get('today_transactions', 'N/A')}")
+            else:
+                print(f"  REASON: Cannot analyze")
+        print(f"{'='*60}\n")
         # Convert to JSON-serializable format
         result = {
             'date': analysis_date.isoformat(),

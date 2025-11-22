@@ -372,7 +372,27 @@
             // Set new values
             riskScore.textContent = data.risk_score + '/100';
             riskLevel.textContent = data.risk_emoji + ' ' + data.risk_level.toUpperCase();
-            
+            // ALWAYS USE RAW DATA FIRST (most reliable)
+            if (data.debug_raw_sales !== undefined && data.debug_raw_trans !== undefined) {
+                 salesDisplay.textContent = 'GHS ' + Math.round(data.debug_raw_sales).toLocaleString();
+                 transDisplay.textContent = data.debug_raw_trans;
+                console.log('Using raw data:', data.debug_raw_sales, data.debug_raw_trans);
+    } 
+            // Fallback to algorithm data
+             else if (data.algorithms.daily_sales && data.algorithms.daily_sales.metrics) {
+                 const sales = data.algorithms.daily_sales.metrics.today_sales;
+                 const trans = data.algorithms.daily_sales.metrics.today_transactions;
+                 salesDisplay.textContent = 'GHS ' + Math.round(sales).toLocaleString();
+                 transDisplay.textContent = trans;
+                 console.log('Using algorithm data:', sales, trans);
+    }
+             // Last resort
+             else {
+                 salesDisplay.textContent = 'GHS 0';
+                 transDisplay.textContent = '0';
+                 console.warn('No sales data available!');
+    }
+    
             // Update sales and transactions
             if (data.algorithms.daily_sales) {
                 const sales = data.algorithms.daily_sales.metrics.today_sales;
