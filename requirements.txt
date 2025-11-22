@@ -1,0 +1,17 @@
+pandas>=1.5.0
+numpy>=1.23.0
+openpyxl>=3.0.0
+python-dateutil>=2.8.0
+twilio>=8.0.0
+python-dotenv>=1.0.0
+flask>=2.3.0
+plotly>=5.14.0
+scikit-learn>=1.3.0  # ADD THIS
+python-dateutil>=2.8.0
+werkzeug>=3.0.0
+gunicorn>=21.2.0
+```
+
+**Create: `Procfile`** (tells Railway how to run your app)
+```
+web: cd dashboard && python app_cloud.py

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmGuard - Automated Pharmacy Audit & Monitoring</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --success-color: #27ae60;
+            --info-color: #3498db;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), #34495e);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .file-info-banner {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-info-banner .btn {
+            background: white;
+            color: #667eea;
+            border: none;
+        }
+        
+        .file-info-banner .btn:hover {
+            background: #f8f9fa;
+        }
+        
+        .risk-card {
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .risk-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .risk-low { border-left: 5px solid var(--success-color); }
+        .risk-medium { border-left: 5px solid var(--warning-color); }
+        .risk-high { border-left: 5px solid var(--danger-color); }
+        .risk-critical { border-left: 5px solid #c0392b; }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .alert-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-chart-line"></i> PharmGuard - Pharmacy Audit System
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <!-- File Info Banner -->
+        <div class="file-info-banner">
+            <div>
+                <i class="fas fa-file-csv"></i> 
+                <strong>Analyzing uploaded sales data</strong>
+                <span class="ms-2" id="dateRangeBanner"></span>
+            </div>
+            <a href="/" class="btn btn-sm">
+                <i class="fas fa-upload"></i> Upload New File
+            </a>
+        </div>
+
+        <!-- Date Selector -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-calendar-alt"></i> Select Date for Analysis
+                                </h5>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <input type="date" class="form-control" id="dateSelector" 
+                                           min="{{ min_date }}" max="{{ max_date }}" 
+                                           value="{{ selected_date }}">
+                                    <button class="btn btn-primary" onclick="analyzeDate()">
+                                        <i class="fas fa-search"></i> Analyze
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="scanAllDates()">
+                                        <i class="fas fa-calendar-check"></i> Scan All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Analyzing data...</p>
+        </div>
+
+        <!-- Analysis Results -->
+        <div id="analysisResults" style="display: none;">
+            <!-- Risk Overview Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: var(--danger-color);">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="ms-3">
+                                <h6 class="text-muted mb-1">Risk Score</h6>
+                                <h3 class="mb-0" id="riskScoreDisplay">--</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: var(--info-color);">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <div class="ms-3">
+                                <h6 class="text-muted mb-1">Risk Level</h6>
+                                <h3 class="mb-0" id="riskLevelDisplay">--</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: var(--success-color);">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </div>
+                            <div class="ms-3">
+                                <h6 class="text-muted mb-1">Daily Sales</h6>
+                                <h3 class="mb-0" id="salesDisplay">--</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon" style="background: var(--warning-color);">
+                                <i class="fas fa-receipt"></i>
+                            </div>
+                            <div class="ms-3">
+                                <h6 class="text-muted mb-1">Transactions</h6>
+                                <h3 class="mb-0" id="transactionsDisplay">--</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alert Messages -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card risk-card" id="alertCard">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-bell"></i> Detection Results
+                            </h5>
+                            <div id="alertMessages"></div>
+                            <hr>
+                            <p class="mb-0"><strong>Recommended Action:</strong></p>
+                            <p id="recommendedAction" class="mb-0"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Algorithm Breakdown -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-cogs"></i> Algorithm Breakdown
+                            </h5>
+                            <div class="row" id="algorithmBreakdown"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scan Results Section -->
+        <div id="scanResults" style="display: none;">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-list"></i> Full Period Scan Results
+                            </h5>
+                            <div id="scanSummary" class="mb-3"></div>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Day</th>
+                                            <th>Sales</th>
+                                            <th>Risk Score</th>
+                                            <th>Risk Level</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="scanTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Set date range banner
+        const minDate = '{{ min_date }}';
+        const maxDate = '{{ max_date }}';
+        document.getElementById('dateRangeBanner').textContent = `(${minDate} to ${maxDate})`;
+
+        // Auto-load on page load
+        window.onload = function() {
+            analyzeDate();
+        };
+
+        function analyzeDate() {
+            const date = document.getElementById('dateSelector').value;
+            
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('analysisResults').style.display = 'none';
+            document.getElementById('scanResults').style.display = 'none';
+            
+            fetch('/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ date: date })
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('analysisResults').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                alert('Error analyzing date. Please try again.');
+            });
+        }
+
+        function displayResults(data) {
+            // Update stat cards
+            document.getElementById('riskScoreDisplay').textContent = data.risk_score + '/100';
+            document.getElementById('riskLevelDisplay').textContent = data.risk_emoji + ' ' + data.risk_level.toUpperCase();
+            
+            // Update sales and transactions
+            if (data.algorithms.daily_sales) {
+                const sales = data.algorithms.daily_sales.metrics.today_sales;
+                const trans = data.algorithms.daily_sales.metrics.today_transactions;
+                document.getElementById('salesDisplay').textContent = 'GHS ' + sales.toLocaleString(undefined, {maximumFractionDigits: 0});
+                document.getElementById('transactionsDisplay').textContent = trans;
+            }
+            
+            // Update alert card styling
+            const alertCard = document.getElementById('alertCard');
+            alertCard.className = 'card risk-card risk-' + data.risk_level;
+            
+            // Display alert messages
+            const alertMessages = document.getElementById('alertMessages');
+            if (data.alert_messages.length > 0) {
+                let html = '<div class="alert alert-warning" role="alert">';
+                html += '<h6><i class="fas fa-exclamation-triangle"></i> Issues Detected:</h6>';
+                html += '<ul class="mb-0">';
+                data.alert_messages.forEach(msg => {
+                    html += '<li>' + msg + '</li>';
+                });
+                html += '</ul></div>';
+                alertMessages.innerHTML = html;
+            } else {
+                alertMessages.innerHTML = '<div class="alert alert-success" role="alert"><i class="fas fa-check-circle"></i> No significant issues detected</div>';
+            }
+            
+            // Display recommended action
+            document.getElementById('recommendedAction').innerHTML = data.recommended_action;
+            
+            // Display algorithm breakdown
+            const algoBreakdown = document.getElementById('algorithmBreakdown');
+            let algoHtml = '';
+            
+            for (const [algoName, algoData] of Object.entries(data.algorithms)) {
+                const status = algoData.alert ? 'danger' : 'success';
+                const icon = algoData.alert ? 'fa-exclamation-circle' : 'fa-check-circle';
+                
+                const displayName = algoName.replace(/_/g, ' ').toUpperCase();
+                const mlModel = algoData.ml_model ? ` (${algoData.ml_model})` : '';
+                
+                algoHtml += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-${status}">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="fas ${icon} text-${status}"></i>
+                                    ${displayName}${mlModel}
+                                </h6>
+                                <p class="mb-2"><strong>Score:</strong> ${algoData.risk_score} points</p>
+                                ${algoData.messages.length > 0 ? '<ul class="small mb-0">' + algoData.messages.map(m => '<li>' + m + '</li>').join('') + '</ul>' : '<p class="text-success small mb-0">✓ Normal</p>'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            algoBreakdown.innerHTML = algoHtml;
+        }
+
+        function scanAllDates() {
+            if (!confirm('This will analyze all dates in your file. Continue?')) {
+                return;
+            }
+
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('analysisResults').style.display = 'none';
+            document.getElementById('scanResults').style.display = 'none';
+
+            fetch('/api/scan_all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayScanResults(data);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('scanResults').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                alert('Error scanning dates. Please try again.');
+            });
+        }
+
+        function displayScanResults(data) {
+            const results = data.results;
+            const alertDays = results.filter(r => r.requires_alert).length;
+            const avgRisk = results.reduce((sum, r) => sum + r.risk_score, 0) / results.length;
+
+            // Summary
+            document.getElementById('scanSummary').innerHTML = `
+                <div class="alert alert-info">
+                    <strong>Scan Complete!</strong><br>
+                    Total Days: ${data.total_days} | 
+                    Days Requiring Investigation: ${alertDays} (${(alertDays/data.total_days*100).toFixed(1)}%) | 
+                    Average Risk Score: ${avgRisk.toFixed(1)}/100
+                </div>
+            `;
+
+            // Table
+            const tbody = document.getElementById('scanTableBody');
+            let html = '';
+
+            results.forEach(result => {
+                const dateObj = new Date(result.date);
+                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                
+                const riskBadge = {
+                    'low': 'success',
+                    'medium': 'warning',
+                    'high': 'danger',
+                    'critical': 'danger'
+                }[result.risk_level];
+
+                const emoji = {
+                    'low': '🟢',
+                    'medium': '🟡',
+                    'high': '🟠',
+                    'critical': '🔴'
+                }[result.risk_level];
+
+                html += `
+                    <tr class="${result.requires_alert ? 'table-warning' : ''}">
+                        <td>${result.date}</td>
+                        <td>${dayName}</td>
+                        <td>GHS ${result.sales.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                        <td><strong>${result.risk_score}/100</strong></td>
+                        <td><span class="badge bg-${riskBadge}">${emoji} ${result.risk_level.toUpperCase()}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="document.getElementById('dateSelector').value='${result.date}'; analyzeDate();">
+                                <i class="fas fa-search"></i> View
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

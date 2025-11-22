@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmGuard - Upload Sales Data</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .upload-container {
+            background: white;
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .logo i {
+            font-size: 3rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+        
+        .logo h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+        
+        .logo p {
+            color: #64748b;
+        }
+        
+        .upload-zone {
+            border: 3px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 2rem;
+        }
+        
+        .upload-zone:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+        
+        .upload-zone.dragover {
+            border-color: #667eea;
+            background: #eff6ff;
+        }
+        
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .btn-upload {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        .btn-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        
+        .file-info {
+            display: none;
+            background: #f1f5f9;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        
+        .progress {
+            display: none;
+            height: 25px;
+            margin-top: 1rem;
+        }
+        
+        .alert {
+            margin-top: 1rem;
+        }
+        
+        .requirements {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+        }
+        
+        .requirements h6 {
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .requirements ul {
+            margin-bottom: 0;
+            padding-left: 1.5rem;
+        }
+        
+        .requirements li {
+            margin-bottom: 0.5rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="upload-container">
+        <div class="logo">
+            <i class="fas fa-chart-line"></i>
+            <h1>PharmGuard</h1>
+            <p>Upload your sales data to get instant analysis</p>
+        </div>
+        
+        <div class="upload-zone" id="uploadZone">
+            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+            <h5>Drag & Drop your CSV file here</h5>
+            <p class="text-muted">or click to browse</p>
+            <input type="file" id="fileInput" class="file-input" accept=".csv,.xlsx,.xls">
+        </div>
+        
+        <div class="file-info" id="fileInfo">
+            <i class="fas fa-file-csv"></i>
+            <strong id="fileName"></strong>
+            <span id="fileSize" class="text-muted"></span>
+        </div>
+        
+        <div class="progress" id="uploadProgress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+        </div>
+        
+        <div id="alertContainer"></div>
+        
+        <button class="btn btn-upload" id="uploadBtn" disabled>
+            <i class="fas fa-upload"></i> Upload & Analyze
+        </button>
+        
+        <div class="requirements">
+            <h6><i class="fas fa-info-circle"></i> File Requirements:</h6>
+            <ul>
+                <li>CSV or Excel file (.csv, .xlsx, .xls)</li>
+                <li>Must contain: Date, Product, Quantity columns</li>
+                <li>Optional: Unit Price, Invoice ID, Staff Name</li>
+                <li>Maximum file size: 50 MB</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const alertContainer = document.getElementById('alertContainer');
+        
+        let selectedFile = null;
+        
+        // Click to upload
+        uploadZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // File selected
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+        
+        // Drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+        
+        function handleFile(file) {
+            if (!file) return;
+            
+            // Validate file type
+            const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+            if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                showAlert('Please upload a CSV or Excel file', 'danger');
+                return;
+            }
+            
+            // Validate file size (50MB)
+            if (file.size > 50 * 1024 * 1024) {
+                showAlert('File is too large. Maximum size is 50MB', 'danger');
+                return;
+            }
+            
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = `(${(file.size / 1024).toFixed(2)} KB)`;
+            fileInfo.style.display = 'block';
+            uploadBtn.disabled = false;
+        }
+        
+        // Upload file
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            uploadBtn.disabled = true;
+            uploadProgress.style.display = 'block';
+            uploadProgress.querySelector('.progress-bar').style.width = '50%';
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                uploadProgress.querySelector('.progress-bar').style.width = '100%';
+                
+                if (response.ok) {
+                    showAlert(`✅ File uploaded successfully! ${result.rows} transactions found covering ${result.total_dates} days.`, 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1500);
+                } else {
+                    showAlert(`❌ Error: ${result.error}`, 'danger');
+                    uploadBtn.disabled = false;
+                    uploadProgress.style.display = 'none';
+                }
+            } catch (error) {
+                showAlert(`❌ Upload failed: ${error.message}`, 'danger');
+                uploadBtn.disabled = false;
+                uploadProgress.style.display = 'none';
+            }
+        });
+        
+        function showAlert(message, type) {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
