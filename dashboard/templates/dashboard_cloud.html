@@ -314,19 +314,32 @@
         function analyzeDate() {
             const date = document.getElementById('dateSelector').value;
             
+            // Force clear all displays immediately
+            document.getElementById('riskScoreDisplay').textContent = '--';
+            document.getElementById('riskLevelDisplay').textContent = '--';
+            document.getElementById('salesDisplay').textContent = '--';
+            document.getElementById('transactionsDisplay').textContent = '--';
+            
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('analysisResults').style.display = 'none';
             document.getElementById('scanResults').style.display = 'none';
             
-            fetch('/api/analyze', {
+            // Add timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            
+            fetch('/api/analyze?t=' + timestamp, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
                 },
                 body: JSON.stringify({ date: date })
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Analysis results for', date, ':', data);
                 displayResults(data);
                 document.getElementById('loadingSpinner').style.display = 'none';
                 document.getElementById('analysisResults').style.display = 'block';
@@ -339,16 +352,33 @@
         }
 
         function displayResults(data) {
-            // Update stat cards
-            document.getElementById('riskScoreDisplay').textContent = data.risk_score + '/100';
-            document.getElementById('riskLevelDisplay').textContent = data.risk_emoji + ' ' + data.risk_level.toUpperCase();
+            console.log('Displaying results:', data);
+            
+            // Get elements
+            const riskScore = document.getElementById('riskScoreDisplay');
+            const riskLevel = document.getElementById('riskLevelDisplay');
+            const salesDisplay = document.getElementById('salesDisplay');
+            const transDisplay = document.getElementById('transactionsDisplay');
+            
+            // Force clear by setting to empty and forcing repaint
+            riskScore.textContent = '';
+            riskLevel.textContent = '';
+            salesDisplay.textContent = '';
+            transDisplay.textContent = '';
+            
+            // Force browser repaint
+            void riskScore.offsetWidth;
+            
+            // Set new values
+            riskScore.textContent = data.risk_score + '/100';
+            riskLevel.textContent = data.risk_emoji + ' ' + data.risk_level.toUpperCase();
             
             // Update sales and transactions
             if (data.algorithms.daily_sales) {
                 const sales = data.algorithms.daily_sales.metrics.today_sales;
                 const trans = data.algorithms.daily_sales.metrics.today_transactions;
-                document.getElementById('salesDisplay').textContent = 'GHS ' + sales.toLocaleString(undefined, {maximumFractionDigits: 0});
-                document.getElementById('transactionsDisplay').textContent = trans;
+                salesDisplay.textContent = 'GHS ' + Math.round(sales).toLocaleString();
+                transDisplay.textContent = trans;
             }
             
             // Update alert card styling
@@ -472,11 +502,11 @@
                     <tr class="${result.requires_alert ? 'table-warning' : ''}">
                         <td>${result.date}</td>
                         <td>${dayName}</td>
-                        <td>GHS ${result.sales.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                        <td>GHS ${Math.round(result.sales).toLocaleString()}</td>
                         <td><strong>${result.risk_score}/100</strong></td>
                         <td><span class="badge bg-${riskBadge}">${emoji} ${result.risk_level.toUpperCase()}</span></td>
                         <td>
-                            <button class="btn btn-sm btn-primary" onclick="document.getElementById('dateSelector').value='${result.date}'; analyzeDate();">
+                            <button class="btn btn-sm btn-primary" onclick="viewDate('${result.date}')">
                                 <i class="fas fa-search"></i> View
                             </button>
                         </td>
@@ -485,6 +515,12 @@
             });
 
             tbody.innerHTML = html;
+        }
+        
+        function viewDate(date) {
+            document.getElementById('dateSelector').value = date;
+            analyzeDate();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     </script>
 </body>
