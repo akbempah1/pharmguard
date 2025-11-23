@@ -111,6 +111,23 @@
             font-size: 12px;
             font-weight: bold;
         }
+        
+        .download-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        
+        @media print {
+            .navbar, .file-info-banner, .download-section, .btn, button {
+                display: none !important;
+            }
+            body {
+                background: white;
+            }
+        }
     </style>
 </head>
 <body>
@@ -176,6 +193,28 @@
 
         <!-- Analysis Results -->
         <div id="analysisResults" style="display: none;">
+            <!-- Download Section -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="download-section">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-file-download"></i>
+                                <strong>Export Report</strong>
+                            </div>
+                            <div>
+                                <button class="btn btn-success btn-sm me-2" onclick="downloadReportPDF()">
+                                    <i class="fas fa-file-pdf"></i> Download PDF
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="printReport()">
+                                    <i class="fas fa-print"></i> Print
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Risk Overview Cards -->
             <div class="row mb-4">
                 <div class="col-md-3">
@@ -270,12 +309,17 @@
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title">
-                                <i class="fas fa-list"></i> Full Period Scan Results
-                            </h5>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-list"></i> Full Period Scan Results
+                                </h5>
+                                <button class="btn btn-success btn-sm" onclick="downloadScanCSV()">
+                                    <i class="fas fa-file-excel"></i> Download CSV
+                                </button>
+                            </div>
                             <div id="scanSummary" class="mb-3"></div>
                             <div class="table-responsive">
-                                <table class="table table-hover">
+                                <table class="table table-hover" id="scanResultsTable">
                                     <thead>
                                         <tr>
                                             <th>Date</th>
@@ -305,6 +349,10 @@
         const minDate = '{{ min_date }}';
         const maxDate = '{{ max_date }}';
         document.getElementById('dateRangeBanner').textContent = `(${minDate} to ${maxDate})`;
+
+        // Store current analysis data
+        let currentAnalysisData = null;
+        let currentScanData = null;
 
         // Auto-load on page load
         window.onload = function() {
@@ -340,6 +388,7 @@
             .then(response => response.json())
             .then(data => {
                 console.log('Analysis results for', date, ':', data);
+                currentAnalysisData = data;
                 displayResults(data);
                 document.getElementById('loadingSpinner').style.display = 'none';
                 document.getElementById('analysisResults').style.display = 'block';
@@ -372,33 +421,26 @@
             // Set new values
             riskScore.textContent = data.risk_score + '/100';
             riskLevel.textContent = data.risk_emoji + ' ' + data.risk_level.toUpperCase();
+            
             // ALWAYS USE RAW DATA FIRST (most reliable)
             if (data.debug_raw_sales !== undefined && data.debug_raw_trans !== undefined) {
-                 salesDisplay.textContent = 'GHS ' + Math.round(data.debug_raw_sales).toLocaleString();
-                 transDisplay.textContent = data.debug_raw_trans;
+                salesDisplay.textContent = 'GHS ' + Math.round(data.debug_raw_sales).toLocaleString();
+                transDisplay.textContent = data.debug_raw_trans;
                 console.log('Using raw data:', data.debug_raw_sales, data.debug_raw_trans);
-    } 
+            } 
             // Fallback to algorithm data
-             else if (data.algorithms.daily_sales && data.algorithms.daily_sales.metrics) {
-                 const sales = data.algorithms.daily_sales.metrics.today_sales;
-                 const trans = data.algorithms.daily_sales.metrics.today_transactions;
-                 salesDisplay.textContent = 'GHS ' + Math.round(sales).toLocaleString();
-                 transDisplay.textContent = trans;
-                 console.log('Using algorithm data:', sales, trans);
-    }
-             // Last resort
-             else {
-                 salesDisplay.textContent = 'GHS 0';
-                 transDisplay.textContent = '0';
-                 console.warn('No sales data available!');
-    }
-    
-            // Update sales and transactions
-            if (data.algorithms.daily_sales) {
+            else if (data.algorithms.daily_sales && data.algorithms.daily_sales.metrics) {
                 const sales = data.algorithms.daily_sales.metrics.today_sales;
                 const trans = data.algorithms.daily_sales.metrics.today_transactions;
                 salesDisplay.textContent = 'GHS ' + Math.round(sales).toLocaleString();
                 transDisplay.textContent = trans;
+                console.log('Using algorithm data:', sales, trans);
+            }
+            // Last resort
+            else {
+                salesDisplay.textContent = 'GHS 0';
+                transDisplay.textContent = '0';
+                console.warn('No sales data available!');
             }
             
             // Update alert card styling
@@ -470,6 +512,7 @@
             })
             .then(response => response.json())
             .then(data => {
+                currentScanData = data;
                 displayScanResults(data);
                 document.getElementById('loadingSpinner').style.display = 'none';
                 document.getElementById('scanResults').style.display = 'block';
@@ -541,6 +584,253 @@
             document.getElementById('dateSelector').value = date;
             analyzeDate();
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // DOWNLOAD FUNCTIONS
+
+        function downloadReportPDF() {
+            const printWindow = window.open('', '', 'height=800,width=800');
+            printWindow.document.write(generatePrintableReport());
+            printWindow.document.close();
+            
+            // Wait for content to load, then print
+            setTimeout(() => {
+                printWindow.print();
+            }, 250);
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        function generatePrintableReport() {
+            const date = document.getElementById('dateSelector').value;
+            const riskScore = document.getElementById('riskScoreDisplay').textContent;
+            const riskLevel = document.getElementById('riskLevelDisplay').textContent;
+            const sales = document.getElementById('salesDisplay').textContent;
+            const trans = document.getElementById('transactionsDisplay').textContent;
+            const alertsHtml = document.getElementById('alertMessages').innerHTML;
+            const action = document.getElementById('recommendedAction').textContent;
+            const algoBreakdown = document.getElementById('algorithmBreakdown').innerHTML;
+            
+            // Clean up the alerts HTML for printing
+            const alertsText = alertsHtml.replace(/<[^>]*>/g, '\n').replace(/\n\n+/g, '\n').trim();
+            
+            return `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>PharmGuard Report - ${date}</title>
+                    <meta charset="UTF-8">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            padding: 40px;
+                            max-width: 900px;
+                            margin: 0 auto;
+                            color: #333;
+                        }
+                        .header {
+                            border-bottom: 4px solid #2563eb;
+                            padding-bottom: 20px;
+                            margin-bottom: 30px;
+                        }
+                        .header h1 {
+                            color: #2563eb;
+                            margin: 0 0 10px 0;
+                            font-size: 28px;
+                        }
+                        .header-info {
+                            color: #666;
+                            font-size: 14px;
+                        }
+                        .metrics {
+                            display: grid;
+                            grid-template-columns: 1fr 1fr 1fr 1fr;
+                            gap: 15px;
+                            margin-bottom: 30px;
+                        }
+                        .metric-box {
+                            border: 2px solid #e5e7eb;
+                            padding: 15px;
+                            border-radius: 8px;
+                            text-align: center;
+                        }
+                        .metric-label {
+                            font-size: 11px;
+                            color: #666;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                            margin-bottom: 8px;
+                        }
+                        .metric-value {
+                            font-size: 22px;
+                            font-weight: bold;
+                            color: #2563eb;
+                        }
+                        .section {
+                            margin-bottom: 30px;
+                        }
+                        .section-title {
+                            font-size: 18px;
+                            font-weight: bold;
+                            color: #2563eb;
+                            margin-bottom: 15px;
+                            padding-bottom: 8px;
+                            border-bottom: 2px solid #e5e7eb;
+                        }
+                        .alerts {
+                            background: #fff3cd;
+                            border-left: 4px solid #ffc107;
+                            padding: 20px;
+                            border-radius: 4px;
+                            margin-bottom: 20px;
+                        }
+                        .alerts h3 {
+                            margin-top: 0;
+                            color: #856404;
+                            font-size: 16px;
+                        }
+                        .success-alert {
+                            background: #d1e7dd;
+                            border-left: 4px solid #198754;
+                            padding: 20px;
+                            border-radius: 4px;
+                            margin-bottom: 20px;
+                        }
+                        .success-alert h3 {
+                            margin-top: 0;
+                            color: #0f5132;
+                            font-size: 16px;
+                        }
+                        .action-box {
+                            background: #f8f9fa;
+                            padding: 20px;
+                            border-radius: 8px;
+                            border-left: 4px solid #2563eb;
+                        }
+                        .footer {
+                            margin-top: 50px;
+                            padding-top: 20px;
+                            border-top: 2px solid #e5e7eb;
+                            text-align: center;
+                            color: #666;
+                            font-size: 12px;
+                        }
+                        .footer-logo {
+                            font-weight: bold;
+                            color: #2563eb;
+                            font-size: 14px;
+                            margin-bottom: 5px;
+                        }
+                        @media print {
+                            body { padding: 20px; }
+                            .metric-box { break-inside: avoid; }
+                            .section { break-inside: avoid; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>📊 PharmGuard Daily Audit Report</h1>
+                        <div class="header-info">
+                            <strong>Analysis Date:</strong> ${date}<br>
+                            <strong>Report Generated:</strong> ${new Date().toLocaleString()}<br>
+                            <strong>Report Type:</strong> Daily Risk Assessment
+                        </div>
+                    </div>
+                    
+                    <div class="metrics">
+                        <div class="metric-box">
+                            <div class="metric-label">Risk Score</div>
+                            <div class="metric-value">${riskScore}</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Risk Level</div>
+                            <div class="metric-value">${riskLevel}</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Daily Sales</div>
+                            <div class="metric-value">${sales}</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Transactions</div>
+                            <div class="metric-value">${trans}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">🔔 Detection Results</div>
+                        ${currentAnalysisData.alert_messages.length > 0 ? 
+                            `<div class="alerts">
+                                <h3>⚠️ Issues Detected</h3>
+                                ${alertsText}
+                            </div>` :
+                            `<div class="success-alert">
+                                <h3>✅ No Significant Issues Detected</h3>
+                                <p>All systems operating normally. No anomalies detected in today's transactions.</p>
+                            </div>`
+                        }
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">📋 Recommended Action</div>
+                        <div class="action-box">
+                            <p style="margin: 0;">${action}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="footer">
+                        <div class="footer-logo">PharmGuard - Automated Pharmacy Audit System</div>
+                        <div>https://pharmguard-production.up.railway.app</div>
+                        <div style="margin-top: 10px;">
+                            This report is confidential and intended for internal use only.
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
+        }
+
+        function downloadScanCSV() {
+            if (!currentScanData || !currentScanData.results) {
+                alert('No scan data available. Please run "Scan All" first.');
+                return;
+            }
+
+            // Build CSV content
+            let csv = 'Date,Day of Week,Sales (GHS),Risk Score,Risk Level,Requires Alert\n';
+            
+            currentScanData.results.forEach(result => {
+                const dateObj = new Date(result.date);
+                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                const sales = Math.round(result.sales);
+                const requiresAlert = result.requires_alert ? 'Yes' : 'No';
+                
+                csv += `${result.date},${dayName},${sales},${result.risk_score},${result.risk_level.toUpperCase()},${requiresAlert}\n`;
+            });
+            
+            // Add summary at the end
+            const alertDays = currentScanData.results.filter(r => r.requires_alert).length;
+            const avgRisk = currentScanData.results.reduce((sum, r) => sum + r.risk_score, 0) / currentScanData.results.length;
+            
+            csv += '\n';
+            csv += 'SUMMARY\n';
+            csv += `Total Days Analyzed,${currentScanData.total_days}\n`;
+            csv += `Days Requiring Investigation,${alertDays}\n`;
+            csv += `Average Risk Score,${avgRisk.toFixed(1)}\n`;
+            csv += `Report Generated,${new Date().toLocaleString()}\n`;
+            
+            // Download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `pharmguard_scan_${minDate}_to_${maxDate}_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
         }
     </script>
 </body>
