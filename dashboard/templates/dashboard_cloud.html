@@ -14,6 +14,9 @@
     <!-- Plotly -->
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -309,13 +312,21 @@
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="card-title mb-0">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+                                <h5 class="card-title mb-2 mb-md-0">
                                     <i class="fas fa-list"></i> Full Period Scan Results
                                 </h5>
-                                <button class="btn btn-success btn-sm" onclick="downloadScanCSV()">
-                                    <i class="fas fa-file-excel"></i> Download CSV
-                                </button>
+                                <div>
+                                    <button class="btn btn-success btn-sm me-2 mb-2 mb-md-0" onclick="downloadScanExcel()">
+                                        <i class="fas fa-file-excel"></i> Download Excel
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm me-2 mb-2 mb-md-0" onclick="downloadScanCSV()">
+                                        <i class="fas fa-file-csv"></i> CSV
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm mb-2 mb-md-0" onclick="downloadScanHTML()">
+                                        <i class="fas fa-globe"></i> HTML
+                                    </button>
+                                </div>
                             </div>
                             <div id="scanSummary" class="mb-3"></div>
                             <div class="table-responsive">
@@ -611,7 +622,6 @@
             const trans = document.getElementById('transactionsDisplay').textContent;
             const alertsHtml = document.getElementById('alertMessages').innerHTML;
             const action = document.getElementById('recommendedAction').textContent;
-            const algoBreakdown = document.getElementById('algorithmBreakdown').innerHTML;
             
             // Clean up the alerts HTML for printing
             const alertsText = alertsHtml.replace(/<[^>]*>/g, '\n').replace(/\n\n+/g, '\n').trim();
@@ -792,6 +802,74 @@
             `;
         }
 
+        function downloadScanExcel() {
+            if (!currentScanData || !currentScanData.results) {
+                alert('No scan data available. Please run "Scan All" first.');
+                return;
+            }
+
+            try {
+                // Create workbook
+                const wb = XLSX.utils.book_new();
+                
+                // Prepare data for main sheet with header
+                const data = [
+                    ['PharmGuard - Full Period Scan Report'],
+                    [`Period: ${minDate} to ${maxDate}`],
+                    [`Generated: ${new Date().toLocaleString()}`],
+                    [],
+                    ['Date', 'Day', 'Sales (GHS)', 'Risk Score', 'Risk Level', 'Requires Alert']
+                ];
+                
+                // Add all results
+                currentScanData.results.forEach(result => {
+                    const dateObj = new Date(result.date);
+                    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                    data.push([
+                        result.date,
+                        dayName,
+                        Math.round(result.sales),
+                        result.risk_score,
+                        result.risk_level.toUpperCase(),
+                        result.requires_alert ? 'Yes' : 'No'
+                    ]);
+                });
+                
+                // Add summary
+                const alertDays = currentScanData.results.filter(r => r.requires_alert).length;
+                const avgRisk = currentScanData.results.reduce((sum, r) => sum + r.risk_score, 0) / currentScanData.results.length;
+                
+                data.push([]);
+                data.push(['SUMMARY']);
+                data.push(['Total Days', currentScanData.total_days]);
+                data.push(['Days Requiring Investigation', alertDays]);
+                data.push(['Percentage Flagged', `${(alertDays/currentScanData.total_days*100).toFixed(1)}%`]);
+                data.push(['Average Risk Score', avgRisk.toFixed(1)]);
+                
+                // Create worksheet
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                
+                // Set column widths
+                ws['!cols'] = [
+                    {wch: 12},  // Date
+                    {wch: 12},  // Day
+                    {wch: 15},  // Sales
+                    {wch: 12},  // Risk Score
+                    {wch: 12},  // Risk Level
+                    {wch: 15}   // Requires Alert
+                ];
+                
+                // Add to workbook
+                XLSX.utils.book_append_sheet(wb, ws, 'Scan Results');
+                
+                // Download
+                XLSX.writeFile(wb, `PharmGuard_Scan_${minDate}_to_${maxDate}.xlsx`);
+            } catch (error) {
+                console.error('Error generating Excel:', error);
+                alert('Error generating Excel file. Please try CSV export instead.');
+            }
+        }
+
         function downloadScanCSV() {
             if (!currentScanData || !currentScanData.results) {
                 alert('No scan data available. Please run "Scan All" first.');
@@ -818,6 +896,7 @@
             csv += 'SUMMARY\n';
             csv += `Total Days Analyzed,${currentScanData.total_days}\n`;
             csv += `Days Requiring Investigation,${alertDays}\n`;
+            csv += `Percentage Flagged,${(alertDays/currentScanData.total_days*100).toFixed(1)}%\n`;
             csv += `Average Risk Score,${avgRisk.toFixed(1)}\n`;
             csv += `Report Generated,${new Date().toLocaleString()}\n`;
             
@@ -826,7 +905,205 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `pharmguard_scan_${minDate}_to_${maxDate}_${new Date().toISOString().split('T')[0]}.csv`;
+            link.download = `PharmGuard_Scan_${minDate}_to_${maxDate}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        }
+
+        function downloadScanHTML() {
+            if (!currentScanData || !currentScanData.results) {
+                alert('No scan data available. Please run "Scan All" first.');
+                return;
+            }
+
+            const alertDays = currentScanData.results.filter(r => r.requires_alert).length;
+            const avgRisk = currentScanData.results.reduce((sum, r) => sum + r.risk_score, 0) / currentScanData.results.length;
+
+            // Generate HTML
+            let html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmGuard Scan Report - ${minDate} to ${maxDate}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+        }
+        .summary {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .summary-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-top: 5px;
+        }
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-collapse: collapse;
+        }
+        th {
+            background: #2563eb;
+            color: white;
+            padding: 15px;
+            text-align: left;
+        }
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .badge-success { background: #d1e7dd; color: #0f5132; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #842029; }
+        .alert-yes { background: #fff3cd; }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 PharmGuard - Full Period Scan</h1>
+        <p>Analysis Period: ${minDate} to ${maxDate}</p>
+        <p>Generated: ${new Date().toLocaleString()}</p>
+    </div>
+    
+    <div class="summary">
+        <h3>Summary</h3>
+        <div class="summary-grid">
+            <div class="summary-item">
+                <div class="summary-label">Total Days</div>
+                <div class="summary-value">${currentScanData.total_days}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Days Flagged</div>
+                <div class="summary-value">${alertDays}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Alert Rate</div>
+                <div class="summary-value">${(alertDays/currentScanData.total_days*100).toFixed(1)}%</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Avg Risk Score</div>
+                <div class="summary-value">${avgRisk.toFixed(1)}</div>
+            </div>
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Sales (GHS)</th>
+                <th>Risk Score</th>
+                <th>Risk Level</th>
+                <th>Requires Alert</th>
+            </tr>
+        </thead>
+        <tbody>
+`;
+
+            // Add rows
+            currentScanData.results.forEach(result => {
+                const dateObj = new Date(result.date);
+                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                
+                const badgeClass = {
+                    'low': 'badge-success',
+                    'medium': 'badge-warning',
+                    'high': 'badge-danger',
+                    'critical': 'badge-danger'
+                }[result.risk_level];
+                
+                const rowClass = result.requires_alert ? 'alert-yes' : '';
+                
+                html += `
+            <tr class="${rowClass}">
+                <td>${result.date}</td>
+                <td>${dayName}</td>
+                <td>GHS ${Math.round(result.sales).toLocaleString()}</td>
+                <td><strong>${result.risk_score}/100</strong></td>
+                <td><span class="badge ${badgeClass}">${result.risk_level.toUpperCase()}</span></td>
+                <td>${result.requires_alert ? '⚠️ Yes' : '✅ No'}</td>
+            </tr>
+                `;
+            });
+
+            html += `
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p><strong>PharmGuard</strong> - Automated Pharmacy Audit System</p>
+        <p>https://pharmguard-production.up.railway.app</p>
+    </div>
+</body>
+</html>
+`;
+
+            // Download
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `PharmGuard_Scan_${minDate}_to_${maxDate}.html`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
