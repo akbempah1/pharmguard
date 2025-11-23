@@ -123,12 +123,127 @@
             margin-bottom: 20px;
         }
         
+        .insights-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .insights-card h5 {
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .insight-section {
+            background: white;
+            color: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .concern-item {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        
+        .concern-item.high {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        
+        .pattern-item {
+            background: #d1ecf1;
+            border-left: 4px solid #0dcaf0;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        
+        .pattern-item.high {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        
+        .recommendation-item {
+            background: #d1e7dd;
+            border-left: 4px solid #198754;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        
+        .recommendation-item .priority {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .priority.IMMEDIATE {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .priority.THIS-WEEK {
+            background: #ffc107;
+            color: #333;
+        }
+        
+        .priority.ONGOING {
+            background: #0dcaf0;
+            color: #333;
+        }
+        
+        .financial-box {
+            background: #e7f3ff;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        
+        .financial-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #cce5ff;
+        }
+        
+        .financial-metric:last-child {
+            border-bottom: none;
+        }
+        
+        .financial-metric .label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .financial-metric .value {
+            font-weight: bold;
+            color: #2563eb;
+            font-size: 1.1em;
+        }
+        
         @media print {
             .navbar, .file-info-banner, .download-section, .btn, button {
                 display: none !important;
             }
             body {
                 background: white;
+            }
+            .insights-card {
+                background: white !important;
+                color: #333 !important;
+                border: 2px solid #667eea;
             }
         }
     </style>
@@ -308,6 +423,78 @@
 
         <!-- Scan Results Section -->
         <div id="scanResults" style="display: none;">
+            
+            <!-- INTELLIGENT INSIGHTS SECTION -->
+            <div class="row mb-4" id="insightsSection">
+                <div class="col-12">
+                    <div class="insights-card">
+                        <h5><i class="fas fa-brain"></i> Intelligent Analysis & Recommendations</h5>
+                        <p>AI-powered insights from your complete period analysis</p>
+                    </div>
+                </div>
+                
+                <!-- Executive Summary -->
+                <div class="col-12 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-clipboard-list"></i> Executive Summary
+                            </h5>
+                            <div id="executiveSummary" style="white-space: pre-line; font-size: 1.05em; line-height: 1.8;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Top Concerns -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-exclamation-triangle"></i> Top Concerns
+                            </h5>
+                            <div id="topConcerns"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Financial Impact -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-calculator"></i> Financial Impact
+                            </h5>
+                            <div id="financialImpact"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Patterns Detected -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-chart-line"></i> Patterns Detected
+                            </h5>
+                            <div id="patternsDetected"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recommendations -->
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-tasks"></i> Prioritized Actions
+                            </h5>
+                            <div id="recommendations"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Scan Results Table -->
             <div class="row mb-4">
                 <div class="col-12">
                     <div class="card">
@@ -364,6 +551,7 @@
         // Store current analysis data
         let currentAnalysisData = null;
         let currentScanData = null;
+        let currentInsights = null;
 
         // Auto-load on page load
         window.onload = function() {
@@ -524,7 +712,9 @@
             .then(response => response.json())
             .then(data => {
                 currentScanData = data;
+                currentInsights = data.insights;
                 displayScanResults(data);
+                displayInsights(data.insights);
                 document.getElementById('loadingSpinner').style.display = 'none';
                 document.getElementById('scanResults').style.display = 'block';
             })
@@ -589,6 +779,111 @@
             });
 
             tbody.innerHTML = html;
+        }
+        
+        function displayInsights(insights) {
+            if (!insights) return;
+            
+            // Executive Summary
+            document.getElementById('executiveSummary').textContent = insights.executive_summary;
+            
+            // Top Concerns
+            const topConcerns = document.getElementById('topConcerns');
+            if (insights.top_concerns && insights.top_concerns.length > 0) {
+                let html = '';
+                insights.top_concerns.forEach(concern => {
+                    html += `
+                        <div class="concern-item high">
+                            <strong>#${concern.rank}: ${concern.date}</strong><br>
+                            ${concern.description}
+                        </div>
+                    `;
+                });
+                topConcerns.innerHTML = html;
+            } else {
+                topConcerns.innerHTML = '<p class="text-success">✅ No critical concerns detected</p>';
+            }
+            
+            // Financial Impact
+            const financialImpact = document.getElementById('financialImpact');
+            if (insights.financial_impact) {
+                const fi = insights.financial_impact;
+                const roi = fi.roi_calculation;
+                
+                let html = `
+                    <div class="financial-box">
+                        <div class="financial-metric">
+                            <span class="label">Estimated Losses (Period):</span>
+                            <span class="value" style="color: #dc3545;">GHS ${fi.estimated_losses.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="label">Projected Annual Impact:</span>
+                            <span class="value" style="color: #dc3545;">GHS ${fi.projected_annual_losses.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                        </div>
+                        <hr>
+                        <div class="financial-metric">
+                            <span class="label">PharmGuard Annual Cost:</span>
+                            <span class="value">GHS ${roi.pharmguard_annual_cost.toLocaleString()}</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="label">Potential Savings (50%):</span>
+                            <span class="value" style="color: #198754;">GHS ${roi.potential_savings.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="label">Net Benefit:</span>
+                            <span class="value" style="color: #198754; font-size: 1.3em;">GHS ${roi.net_benefit.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="label">ROI Multiple:</span>
+                            <span class="value" style="color: #198754; font-size: 1.3em;">${roi.roi_multiple.toFixed(1)}x</span>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-muted small">
+                        <i class="fas fa-info-circle"></i> 
+                        Based on historical patterns. Assumes catching 50% of issues with PharmGuard monitoring.
+                    </p>
+                `;
+                financialImpact.innerHTML = html;
+            }
+            
+            // Patterns Detected
+            const patternsDetected = document.getElementById('patternsDetected');
+            if (insights.patterns && insights.patterns.length > 0) {
+                let html = '';
+                insights.patterns.forEach(pattern => {
+                    const severityClass = pattern.severity === 'high' ? 'high' : '';
+                    html += `
+                        <div class="pattern-item ${severityClass}">
+                            <strong>${pattern.type}:</strong> ${pattern.pattern}<br>
+                            <small><i class="fas fa-arrow-right"></i> ${pattern.action}</small>
+                        </div>
+                    `;
+                });
+                patternsDetected.innerHTML = html;
+            } else {
+                patternsDetected.innerHTML = '<p class="text-success">✅ No concerning patterns detected</p>';
+            }
+            
+            // Recommendations
+            const recommendations = document.getElementById('recommendations');
+            if (insights.recommendations && insights.recommendations.length > 0) {
+                let html = '';
+                insights.recommendations.forEach(rec => {
+                    const priorityClass = rec.priority.replace(' ', '-');
+                    html += `
+                        <div class="recommendation-item">
+                            <span class="priority ${priorityClass}">${rec.priority}</span><br>
+                            <strong>${rec.action}</strong><br>
+                            <small>${rec.details}</small><br>
+                            <small class="text-muted">
+                                <i class="fas fa-clock"></i> ${rec.timeframe} | 
+                                <i class="fas fa-exclamation-circle"></i> Impact: ${rec.impact}
+                            </small>
+                        </div>
+                    `;
+                });
+                recommendations.innerHTML = html;
+            }
         }
         
         function viewDate(date) {
@@ -809,19 +1104,64 @@
             }
 
             try {
-                // Create workbook
                 const wb = XLSX.utils.book_new();
                 
-                // Prepare data for main sheet with header
-                const data = [
-                    ['PharmGuard - Full Period Scan Report'],
+                // SHEET 1: Summary & Insights
+                const summaryData = [
+                    ['PharmGuard - Intelligent Analysis Report'],
                     [`Period: ${minDate} to ${maxDate}`],
                     [`Generated: ${new Date().toLocaleString()}`],
                     [],
+                    ['EXECUTIVE SUMMARY'],
+                    [currentInsights.executive_summary],
+                    [],
+                    ['FINANCIAL IMPACT'],
+                    ['Metric', 'Value'],
+                    ['Estimated Losses', `GHS ${currentInsights.financial_impact.estimated_losses.toFixed(0)}`],
+                    ['Projected Annual Impact', `GHS ${currentInsights.financial_impact.projected_annual_losses.toFixed(0)}`],
+                    ['PharmGuard Annual Cost', `GHS ${currentInsights.financial_impact.roi_calculation.pharmguard_annual_cost}`],
+                    ['Potential Savings', `GHS ${currentInsights.financial_impact.roi_calculation.potential_savings.toFixed(0)}`],
+                    ['Net Benefit', `GHS ${currentInsights.financial_impact.roi_calculation.net_benefit.toFixed(0)}`],
+                    ['ROI Multiple', `${currentInsights.financial_impact.roi_calculation.roi_multiple.toFixed(1)}x`],
+                    [],
+                    ['TOP CONCERNS'],
+                    ['Rank', 'Date', 'Risk Score', 'Sales']
+                ];
+                
+                currentInsights.top_concerns.forEach(concern => {
+                    summaryData.push([
+                        concern.rank,
+                        concern.date,
+                        concern.risk_score,
+                        `GHS ${concern.sales.toFixed(0)}`
+                    ]);
+                });
+                
+                summaryData.push([]);
+                summaryData.push(['PATTERNS DETECTED']);
+                summaryData.push(['Type', 'Pattern', 'Recommended Action']);
+                
+                currentInsights.patterns.forEach(pattern => {
+                    summaryData.push([pattern.type, pattern.pattern, pattern.action]);
+                });
+                
+                summaryData.push([]);
+                summaryData.push(['RECOMMENDATIONS']);
+                summaryData.push(['Priority', 'Action', 'Details', 'Timeframe']);
+                
+                currentInsights.recommendations.forEach(rec => {
+                    summaryData.push([rec.priority, rec.action, rec.details, rec.timeframe]);
+                });
+                
+                const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+                ws1['!cols'] = [{wch: 20}, {wch: 50}, {wch: 40}, {wch: 20}];
+                XLSX.utils.book_append_sheet(wb, ws1, 'Insights & Analysis');
+                
+                // SHEET 2: Detailed Results
+                const data = [
                     ['Date', 'Day', 'Sales (GHS)', 'Risk Score', 'Risk Level', 'Requires Alert']
                 ];
                 
-                // Add all results
                 currentScanData.results.forEach(result => {
                     const dateObj = new Date(result.date);
                     const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
@@ -835,35 +1175,12 @@
                     ]);
                 });
                 
-                // Add summary
-                const alertDays = currentScanData.results.filter(r => r.requires_alert).length;
-                const avgRisk = currentScanData.results.reduce((sum, r) => sum + r.risk_score, 0) / currentScanData.results.length;
-                
-                data.push([]);
-                data.push(['SUMMARY']);
-                data.push(['Total Days', currentScanData.total_days]);
-                data.push(['Days Requiring Investigation', alertDays]);
-                data.push(['Percentage Flagged', `${(alertDays/currentScanData.total_days*100).toFixed(1)}%`]);
-                data.push(['Average Risk Score', avgRisk.toFixed(1)]);
-                
-                // Create worksheet
-                const ws = XLSX.utils.aoa_to_sheet(data);
-                
-                // Set column widths
-                ws['!cols'] = [
-                    {wch: 12},  // Date
-                    {wch: 12},  // Day
-                    {wch: 15},  // Sales
-                    {wch: 12},  // Risk Score
-                    {wch: 12},  // Risk Level
-                    {wch: 15}   // Requires Alert
-                ];
-                
-                // Add to workbook
-                XLSX.utils.book_append_sheet(wb, ws, 'Scan Results');
+                const ws2 = XLSX.utils.aoa_to_sheet(data);
+                ws2['!cols'] = [{wch: 12}, {wch: 12}, {wch: 15}, {wch: 12}, {wch: 12}, {wch: 15}];
+                XLSX.utils.book_append_sheet(wb, ws2, 'Daily Results');
                 
                 // Download
-                XLSX.writeFile(wb, `PharmGuard_Scan_${minDate}_to_${maxDate}.xlsx`);
+                XLSX.writeFile(wb, `PharmGuard_Analysis_${minDate}_to_${maxDate}.xlsx`);
             } catch (error) {
                 console.error('Error generating Excel:', error);
                 alert('Error generating Excel file. Please try CSV export instead.');
@@ -898,6 +1215,7 @@
             csv += `Days Requiring Investigation,${alertDays}\n`;
             csv += `Percentage Flagged,${(alertDays/currentScanData.total_days*100).toFixed(1)}%\n`;
             csv += `Average Risk Score,${avgRisk.toFixed(1)}\n`;
+            csv += `Estimated Losses,GHS ${currentInsights.financial_impact.estimated_losses.toFixed(0)}\n`;
             csv += `Report Generated,${new Date().toLocaleString()}\n`;
             
             // Download
@@ -921,14 +1239,14 @@
             const alertDays = currentScanData.results.filter(r => r.requires_alert).length;
             const avgRisk = currentScanData.results.reduce((sum, r) => sum + r.risk_score, 0) / currentScanData.results.length;
 
-            // Generate HTML
+            // Generate HTML with insights
             let html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PharmGuard Scan Report - ${minDate} to ${maxDate}</title>
+    <title>PharmGuard Analysis Report - ${minDate} to ${maxDate}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -946,6 +1264,63 @@
         }
         .header h1 {
             margin: 0 0 10px 0;
+        }
+        .insights-section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .insights-section h3 {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .executive-summary {
+            background: #e7f3ff;
+            padding: 20px;
+            border-left: 4px solid #3498db;
+            border-radius: 4px;
+            white-space: pre-line;
+            line-height: 1.8;
+        }
+        .concern-item {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .pattern-item {
+            background: #d1ecf1;
+            border-left: 4px solid #0dcaf0;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .recommendation-item {
+            background: #d1e7dd;
+            border-left: 4px solid #198754;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .financial-box {
+            background: #e7f3ff;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .financial-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #cce5ff;
+        }
+        .financial-metric:last-child {
+            border-bottom: none;
         }
         .summary {
             background: white;
@@ -1015,17 +1390,118 @@
             color: #666;
             font-size: 12px;
         }
+        .priority-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .IMMEDIATE { background: #dc3545; color: white; }
+        .THIS-WEEK { background: #ffc107; color: #333; }
+        .ONGOING { background: #0dcaf0; color: #333; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>📊 PharmGuard - Full Period Scan</h1>
+        <h1>📊 PharmGuard - Intelligent Analysis Report</h1>
         <p>Analysis Period: ${minDate} to ${maxDate}</p>
         <p>Generated: ${new Date().toLocaleString()}</p>
     </div>
     
+    <div class="insights-section">
+        <h3>📋 Executive Summary</h3>
+        <div class="executive-summary">${currentInsights.executive_summary}</div>
+    </div>
+    
+    <div class="insights-section">
+        <h3>⚠️ Top Concerns</h3>
+`;
+
+            currentInsights.top_concerns.forEach(concern => {
+                html += `
+        <div class="concern-item">
+            <strong>#${concern.rank}: ${concern.date}</strong><br>
+            ${concern.description}
+        </div>
+                `;
+            });
+
+            html += `
+    </div>
+    
+    <div class="insights-section">
+        <h3>💰 Financial Impact Analysis</h3>
+        <div class="financial-box">
+            <div class="financial-metric">
+                <span><strong>Estimated Losses (Period):</strong></span>
+                <span style="color: #dc3545; font-weight: bold;">GHS ${currentInsights.financial_impact.estimated_losses.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="financial-metric">
+                <span><strong>Projected Annual Impact:</strong></span>
+                <span style="color: #dc3545; font-weight: bold;">GHS ${currentInsights.financial_impact.projected_annual_losses.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="financial-metric">
+                <span><strong>PharmGuard Annual Cost:</strong></span>
+                <span>GHS ${currentInsights.financial_impact.roi_calculation.pharmguard_annual_cost.toLocaleString()}</span>
+            </div>
+            <div class="financial-metric">
+                <span><strong>Potential Savings (50%):</strong></span>
+                <span style="color: #198754; font-weight: bold;">GHS ${currentInsights.financial_impact.roi_calculation.potential_savings.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="financial-metric">
+                <span><strong>Net Benefit:</strong></span>
+                <span style="color: #198754; font-weight: bold; font-size: 1.2em;">GHS ${currentInsights.financial_impact.roi_calculation.net_benefit.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+            </div>
+            <div class="financial-metric">
+                <span><strong>ROI Multiple:</strong></span>
+                <span style="color: #198754; font-weight: bold; font-size: 1.2em;">${currentInsights.financial_impact.roi_calculation.roi_multiple.toFixed(1)}x</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="insights-section">
+        <h3>📈 Patterns Detected</h3>
+`;
+
+            if (currentInsights.patterns.length > 0) {
+                currentInsights.patterns.forEach(pattern => {
+                    html += `
+        <div class="pattern-item">
+            <strong>${pattern.type}:</strong> ${pattern.pattern}<br>
+            <small><strong>Action:</strong> ${pattern.action}</small>
+        </div>
+                    `;
+                });
+            } else {
+                html += '<p>✅ No concerning patterns detected</p>';
+            }
+
+            html += `
+    </div>
+    
+    <div class="insights-section">
+        <h3>✅ Prioritized Recommendations</h3>
+`;
+
+            currentInsights.recommendations.forEach(rec => {
+                const priorityClass = rec.priority.replace(' ', '-');
+                html += `
+        <div class="recommendation-item">
+            <span class="priority-badge ${priorityClass}">${rec.priority}</span><br>
+            <strong>${rec.action}</strong><br>
+            <small>${rec.details}</small><br>
+            <small style="color: #666;">⏰ ${rec.timeframe} | 💥 Impact: ${rec.impact}</small>
+        </div>
+                `;
+            });
+
+            html += `
+    </div>
+    
     <div class="summary">
-        <h3>Summary</h3>
+        <h3>Summary Statistics</h3>
         <div class="summary-grid">
             <div class="summary-item">
                 <div class="summary-label">Total Days</div>
@@ -1093,6 +1569,7 @@
     <div class="footer">
         <p><strong>PharmGuard</strong> - Automated Pharmacy Audit System</p>
         <p>https://pharmguard-production.up.railway.app</p>
+        <p style="margin-top: 15px;">This report contains AI-powered insights and recommendations based on statistical analysis of your sales data.</p>
     </div>
 </body>
 </html>
@@ -1103,7 +1580,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `PharmGuard_Scan_${minDate}_to_${maxDate}.html`;
+            link.download = `PharmGuard_Analysis_${minDate}_to_${maxDate}.html`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);

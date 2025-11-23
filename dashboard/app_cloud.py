@@ -1,6 +1,6 @@
 """
 PharmGuard Cloud Version
-Upload CSV and get instant analysis
+Upload CSV and get instant analysis with intelligent insights
 """
 
 from flask import Flask, render_template, request, jsonify, session
@@ -123,13 +123,11 @@ def analyze():
             return jsonify({'error': 'No date provided'}), 400
         
         analysis_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        # DEBUG: Print what we're analyzing
-        print(f"\n{'='*60}")
-        print(f"ANALYZING DATE: {analysis_date}")
-        print(f"{'='*60}")
+        
         # Load data
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], session['current_file'])
-         # DON'T suppress stdout yet - we want to see debug output
+        
+        # DON'T suppress stdout yet - we want to see debug output
         transactions_df, _ = load_transaction_data(filepath)
         
         # DEBUG: Check raw data for this date BEFORE running algorithms
@@ -139,24 +137,17 @@ def analyze():
         print(f"Raw transactions on {analysis_date}: {len(today_data)}")
         print(f"Raw sales on {analysis_date}: GHS {today_data['amount'].sum():,.2f}")
         print(f"{'='*60}")
-
+        
+        # NOW suppress stdout for algorithm execution
         import io
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
         
-        
-        transactions_df, _ = load_transaction_data(filepath)
-        # DEBUG: Check data for this specific date
-        today_data = transactions_df[transactions_df['transaction_date'].dt.date == analysis_date]
-        print(f"Transactions on {analysis_date}: {len(today_data)}")
-        print(f"Sales on {analysis_date}: GHS {today_data['amount'].sum():,.2f}")
-        
         assessment = calculate_overall_risk(analysis_date, transactions_df)
-        # DEBUG: Check assessment
-        print(f"Risk Score: {assessment['total_risk_score']}")
-        print(f"Risk Level: {assessment['risk_level']}")
         
+        # Restore stdout
         sys.stdout = old_stdout
+        
         # DEBUG: Check assessment results
         print(f"Risk Score: {assessment['total_risk_score']}")
         print(f"Risk Level: {assessment['risk_level']}")
@@ -172,6 +163,7 @@ def analyze():
             else:
                 print(f"  REASON: Cannot analyze")
         print(f"{'='*60}\n")
+        
         # Convert to JSON-serializable format
         result = {
             'date': analysis_date.isoformat(),
@@ -181,7 +173,9 @@ def analyze():
             'requires_alert': bool(assessment['requires_alert']),
             'recommended_action': str(assessment['recommended_action']),
             'alert_messages': [str(msg) for msg in assessment['alert_messages']],
-            'algorithms': {}
+            'algorithms': {},
+            'debug_raw_sales': float(today_data['amount'].sum()),
+            'debug_raw_trans': int(len(today_data))
         }
         
         # Add algorithm details
@@ -211,6 +205,9 @@ def analyze():
         return jsonify(result)
         
     except Exception as e:
+        import traceback
+        print(f"\nERROR: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
@@ -228,7 +225,10 @@ def scan_all():
         sys.stdout = io.StringIO()
         
         transactions_df, _ = load_transaction_data(filepath)
-        all_dates = sorted(transactions_df['transaction_date'].dt.date.unique())
+        
+        # Get only dates with actual transactions
+        dates_with_data = transactions_df['transaction_date'].dt.date.unique()
+        all_dates = sorted(dates_with_data)
         
         results = []
         
@@ -238,6 +238,10 @@ def scan_all():
             daily_sales = 0
             if assessment['algorithm_results']['daily_sales'].get('can_analyze'):
                 daily_sales = assessment['algorithm_results']['daily_sales']['metrics'].get('today_sales', 0)
+            else:
+                # Fallback to raw calculation
+                today_data = transactions_df[transactions_df['transaction_date'].dt.date == analysis_date]
+                daily_sales = today_data['amount'].sum()
             
             results.append({
                 'date': analysis_date.isoformat(),
@@ -249,13 +253,239 @@ def scan_all():
         
         sys.stdout = old_stdout
         
+        # Generate intelligent insights
+        insights = generate_insights(results, transactions_df)
+        
         return jsonify({
             'total_days': len(all_dates),
-            'results': results
+            'results': results,
+            'insights': insights
         })
         
     except Exception as e:
+        import traceback
+        print(f"\nERROR: {str(e)}")
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
+
+def generate_insights(results, transactions_df):
+    """Generate intelligent insights from scan results"""
+    from collections import defaultdict
+    
+    total_days = len(results)
+    
+    if total_days == 0:
+        return {}
+    
+    # Calculate key metrics
+    high_risk_days = [r for r in results if r['risk_score'] >= 60]
+    medium_risk_days = [r for r in results if 40 <= r['risk_score'] < 60]
+    avg_risk = sum(r['risk_score'] for r in results) / total_days
+    total_sales = sum(r['sales'] for r in results)
+    avg_daily_sales = total_sales / total_days
+    
+    # Determine severity
+    if avg_risk > 50:
+        severity = "CRITICAL"
+        emoji = "🔴"
+    elif avg_risk > 35:
+        severity = "HIGH"
+        emoji = "🟠"
+    elif avg_risk > 20:
+        severity = "MODERATE"
+        emoji = "🟡"
+    else:
+        severity = "LOW"
+        emoji = "🟢"
+    
+    # Generate executive summary
+    severity_messages = {
+        "CRITICAL": "⚠️ URGENT: Multiple serious issues detected. Immediate action required to prevent significant losses.",
+        "HIGH": "⚠️ WARNING: Several concerning patterns identified. Schedule investigation within 48 hours.",
+        "MODERATE": "ℹ️ MONITOR: Some anomalies detected. Review flagged days and monitor for escalation.",
+        "LOW": "✅ HEALTHY: Operations appear normal. Continue routine monitoring."
+    }
+    
+    executive_summary = f"""{emoji} Overall Risk Level: {severity}
+
+Period Health: {total_days} days analyzed
+- {len(high_risk_days)} days require immediate investigation ({(len(high_risk_days)/total_days*100):.1f}%)
+- {len(medium_risk_days)} days show moderate concerns
+- Average risk score: {avg_risk:.1f}/100
+
+{severity_messages[severity]}"""
+    
+    # Identify top concerns
+    top_concerns = sorted(results, key=lambda x: x['risk_score'], reverse=True)[:3]
+    top_concerns_list = []
+    for i, day in enumerate(top_concerns, 1):
+        if day['risk_score'] >= 60:
+            top_concerns_list.append({
+                'rank': i,
+                'date': day['date'],
+                'risk_score': day['risk_score'],
+                'sales': day['sales'],
+                'description': f"Risk: {day['risk_score']}/100 | Sales: GHS {day['sales']:,.0f}"
+            })
+    
+    # Detect patterns
+    patterns = []
+    
+    # Day of week analysis
+    day_scores = defaultdict(list)
+    day_sales = defaultdict(list)
+    
+    for r in results:
+        date_obj = datetime.fromisoformat(r['date'])
+        day_name = date_obj.strftime('%A')
+        day_scores[day_name].append(r['risk_score'])
+        day_sales[day_name].append(r['sales'])
+    
+    # Find problematic days
+    for day, scores in day_scores.items():
+        if len(scores) >= 2:
+            avg_score = sum(scores) / len(scores)
+            avg_sales = sum(day_sales[day]) / len(day_sales[day])
+            
+            if avg_score > 45:
+                patterns.append({
+                    'type': 'Day-of-Week',
+                    'pattern': f"{day}s consistently show higher risk (avg: {avg_score:.1f}/100)",
+                    'action': f"Review {day} operations and staffing",
+                    'severity': 'high' if avg_score > 60 else 'medium'
+                })
+            
+            # Check if specific day has significantly lower sales
+            overall_avg = avg_daily_sales
+            if avg_sales < overall_avg * 0.85:
+                patterns.append({
+                    'type': 'Sales Pattern',
+                    'pattern': f"{day}s average GHS {avg_sales:,.0f} vs overall GHS {overall_avg:,.0f} ({((avg_sales/overall_avg-1)*100):.1f}%)",
+                    'action': f"Investigate why {day}s underperform",
+                    'severity': 'medium'
+                })
+    
+    # Trend detection
+    if total_days >= 14:
+        # Split into weeks
+        weeks = [results[i:i+7] for i in range(0, len(results), 7)]
+        if len(weeks) >= 2:
+            first_week_avg = sum(r['risk_score'] for r in weeks[0]) / len(weeks[0])
+            last_week_avg = sum(r['risk_score'] for r in weeks[-1]) / len(weeks[-1])
+            
+            change = ((last_week_avg - first_week_avg) / first_week_avg) * 100 if first_week_avg > 0 else 0
+            
+            if abs(change) > 20:
+                direction = "increasing" if change > 0 else "improving"
+                severity = 'high' if change > 0 else 'low'
+                patterns.append({
+                    'type': 'Trend',
+                    'pattern': f"Risk scores {direction} by {abs(change):.1f}% over period",
+                    'action': f"{'Urgent: Investigate cause of deterioration' if change > 0 else 'Positive: Continue current practices'}",
+                    'severity': severity
+                })
+            
+            # Sales trend
+            first_week_sales = sum(r['sales'] for r in weeks[0]) / len(weeks[0])
+            last_week_sales = sum(r['sales'] for r in weeks[-1]) / len(weeks[-1])
+            sales_change = ((last_week_sales - first_week_sales) / first_week_sales) * 100 if first_week_sales > 0 else 0
+            
+            if abs(sales_change) > 15:
+                direction = "declining" if sales_change < 0 else "improving"
+                patterns.append({
+                    'type': 'Sales Trend',
+                    'pattern': f"Sales {direction} by {abs(sales_change):.1f}% (GHS {first_week_sales:,.0f} → GHS {last_week_sales:,.0f})",
+                    'action': f"{'Investigate cause of sales decline' if sales_change < 0 else 'Analyze success factors'}",
+                    'severity': 'high' if sales_change < 0 else 'low'
+                })
+    
+    # Generate recommendations
+    recommendations = []
+    
+    if len(high_risk_days) > 0:
+        top_dates = ', '.join([r['date'] for r in top_concerns_list[:3]])
+        recommendations.append({
+            'priority': 'IMMEDIATE',
+            'action': f"Investigate {len(high_risk_days)} high-risk day(s)",
+            'details': f"Priority dates: {top_dates}",
+            'impact': 'HIGH',
+            'timeframe': 'Within 24 hours'
+        })
+    
+    if len(high_risk_days) >= 5:
+        recommendations.append({
+            'priority': 'THIS WEEK',
+            'action': "Conduct comprehensive operational audit",
+            'details': "Multiple issues suggest systematic problem requiring full review",
+            'impact': 'HIGH',
+            'timeframe': 'Within 7 days'
+        })
+    
+    # Pattern-based recommendations
+    high_severity_patterns = [p for p in patterns if p.get('severity') == 'high']
+    if high_severity_patterns:
+        recommendations.append({
+            'priority': 'THIS WEEK',
+            'action': "Address recurring patterns",
+            'details': f"{len(high_severity_patterns)} pattern(s) require attention: {high_severity_patterns[0]['pattern']}",
+            'impact': 'MEDIUM',
+            'timeframe': 'Within 7 days'
+        })
+    
+    recommendations.append({
+        'priority': 'ONGOING',
+        'action': "Continue daily monitoring with PharmGuard",
+        'details': "Early detection prevents issue escalation and significant losses",
+        'impact': 'MEDIUM',
+        'timeframe': 'Daily'
+    })
+    
+    # Estimate financial impact
+    estimated_losses = 0
+    for day in high_risk_days:
+        expected = avg_daily_sales
+        actual = day['sales']
+        if actual < expected:
+            estimated_losses += (expected - actual)
+    
+    # Project annual impact
+    days_in_period = total_days
+    high_risk_rate = len(high_risk_days) / total_days
+    days_per_year = 365
+    projected_annual_losses = (estimated_losses / days_in_period) * days_per_year
+    
+    financial_impact = {
+        'total_sales': total_sales,
+        'avg_daily_sales': avg_daily_sales,
+        'estimated_losses': estimated_losses,
+        'projected_annual_losses': projected_annual_losses,
+        'high_risk_days_count': len(high_risk_days),
+        'roi_calculation': {
+            'pharmguard_annual_cost': 4800,  # GHS 400/month * 12
+            'potential_savings': estimated_losses * 0.5,  # Assume catching 50% of issues
+            'net_benefit': (estimated_losses * 0.5) - 4800,
+            'roi_multiple': ((estimated_losses * 0.5) / 4800) if 4800 > 0 else 0
+        }
+    }
+    
+    return {
+        'executive_summary': executive_summary,
+        'severity': severity,
+        'severity_emoji': emoji,
+        'top_concerns': top_concerns_list,
+        'patterns': patterns,
+        'recommendations': recommendations,
+        'financial_impact': financial_impact,
+        'metrics': {
+            'total_days': total_days,
+            'high_risk_days': len(high_risk_days),
+            'medium_risk_days': len(medium_risk_days),
+            'avg_risk_score': avg_risk,
+            'total_sales': total_sales,
+            'avg_daily_sales': avg_daily_sales
+        }
+    }
 
 
 if __name__ == '__main__':
